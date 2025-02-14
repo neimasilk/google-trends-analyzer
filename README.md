@@ -21,7 +21,7 @@ Proyek Python untuk menganalisis dan mengambil data trending dari Google Trends 
 ### Menggunakan Anaconda (Direkomendasikan)
 1. Clone repository ini:
 ```bash
-git clone [URL_REPOSITORY]
+git clone https://github.com/neimasilk/google-trends-analyzer.git
 cd google-trends-analyzer
 ```
 
@@ -33,7 +33,7 @@ conda env create -f environment.yml
 ### Menggunakan pip
 1. Clone repository ini:
 ```bash
-git clone [URL_REPOSITORY]
+git clone https://github.com/neimasilk/google-trends-analyzer.git
 cd google-trends-analyzer
 ```
 
