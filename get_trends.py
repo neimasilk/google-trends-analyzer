@@ -48,18 +48,84 @@ def is_temporary_content(keyword):
             
     return False
 
+def get_region_code(region):
+    """
+    Mendapatkan kode region untuk Google Trends
+    """
+    region_codes = {
+        'indonesia': {'code': 'indonesia', 'name': 'Indonesia'},
+        'dunia': {'code': 'global', 'name': 'Dunia'},
+        'amerika': {'code': 'united_states', 'name': 'Amerika Serikat'},
+    }
+    
+    return region_codes.get(region.lower(), region_codes['indonesia'])
+
+def get_global_trends(pytrends, limit=20):
+    """
+    Mengambil trend global dengan menggabungkan trend dari beberapa sumber
+    """
+    # Daftar negara dengan kode yang benar untuk trending_searches
+    countries = {
+        'united_states': 'Amerika Serikat',
+        'india': 'India',
+        'japan': 'Jepang',
+        'singapore': 'Singapura',
+        'australia': 'Australia',
+        'canada': 'Kanada'
+    }
+    
+    all_trends = []
+    print("\nMengambil trend dari beberapa negara:")
+    
+    for country_code, country_name in countries.items():
+        try:
+            print(f"- Mencoba {country_name}...")
+            trending_searches_df = pytrends.trending_searches(pn=country_code)
+            if not trending_searches_df.empty:
+                # Ambil 5 trend teratas dari setiap negara
+                top_trends = trending_searches_df.head(5)
+                all_trends.extend(top_trends.values.flatten())
+                print(f"  ✓ Berhasil mendapatkan {len(top_trends)} trend")
+        except Exception as e:
+            print(f"  ✗ Gagal: {str(e)}")
+            continue
+    
+    # Jika masih tidak ada trend, kembalikan DataFrame kosong
+    if not all_trends:
+        print("\nTidak ada trend yang berhasil diambil dari semua negara.")
+        return pd.DataFrame(columns=['Keyword'])
+    
+    print(f"\nTotal trend mentah: {len(all_trends)}")
+    
+    # Hapus duplikat
+    all_trends = list(dict.fromkeys(all_trends))
+    print(f"Total trend setelah hapus duplikat: {len(all_trends)}")
+    
+    # Buat DataFrame
+    df = pd.DataFrame(all_trends[:limit], columns=['Keyword'])
+    return df
+
 def get_top_trends(region='indonesia', limit=20):
     """
     Mengambil trend teratas dari Google Trends
     """
     try:
-        # Inisialisasi pytrends
-        pytrends = TrendReq(hl='id-ID', tz=420)
+        # Dapatkan kode region
+        region_info = get_region_code(region)
         
-        # Mengambil trending searches
-        trending_searches_df = pytrends.trending_searches(pn=region.lower())
-        df = pd.DataFrame(trending_searches_df)
-        df.columns = ['Keyword']
+        # Inisialisasi pytrends dengan bahasa yang sesuai
+        if region.lower() in ['dunia', 'amerika']:
+            pytrends = TrendReq(hl='en-US', tz=420)
+        else:
+            pytrends = TrendReq(hl='id-ID', tz=420)
+        
+        # Mengambil trending searches berdasarkan region
+        if region.lower() == 'dunia':
+            df = get_global_trends(pytrends, limit)
+        else:
+            trending_searches_df = pytrends.trending_searches(pn=region_info['code'])
+            df = pd.DataFrame(trending_searches_df)
+            df.columns = ['Keyword']
         
         # Filter konten temporer
         df = df[~df['Keyword'].apply(is_temporary_content)]
@@ -67,14 +133,14 @@ def get_top_trends(region='indonesia', limit=20):
         # Reset index mulai dari 1
         df.index = range(1, len(df) + 1)
         
-        return df
+        return df, region_info
         
     except Exception as e:
         print(f"Terjadi kesalahan saat mengambil data dari Google Trends:")
         print(f"Error: {str(e)}")
-        return None
+        return None, None
 
-def save_to_markdown(df, filename=None):
+def save_to_markdown(df, region_info, filename=None):
     """
     Menyimpan hasil ke file markdown
     """
@@ -83,17 +149,19 @@ def save_to_markdown(df, filename=None):
         
     if filename is None:
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"trends_{current_time}.md"
+        region_code = region_info['code'].lower()
+        filename = f"trends_{region_code}_{current_time}.md"
     
     current_datetime = datetime.now().strftime("%d %B %Y %H:%M:%S")
     
     # Buat konten markdown
-    markdown_content = f"""# Trend Google Indonesia
+    markdown_content = f"""# Trend Google {region_info['name']}
 
 > Diperbarui: {current_datetime}
 
 ## Ringkasan
 - Total trend: {len(df)}
+- Region: {region_info['name']}
 - Catatan: Tidak termasuk berita olahraga dan konten temporer
 
 ## Daftar Trend
@@ -108,7 +176,7 @@ def save_to_markdown(df, filename=None):
     
     # Tambahkan catatan kaki
     markdown_content += "\n\n---\n"
-    markdown_content += "_Data diambil dari Google Trends Indonesia (sudah difilter dari konten olahraga dan temporer)_\n"
+    markdown_content += f"_Data diambil dari Google Trends {region_info['name']} (sudah difilter dari konten olahraga dan temporer)_\n"
     
     # Simpan ke file
     with open(filename, 'w', encoding='utf-8') as f:
@@ -117,19 +185,37 @@ def save_to_markdown(df, filename=None):
     print(f"Hasil telah disimpan ke file: {filename}")
 
 def main():
-    print("Mengambil trend dari Google Trends Indonesia...")
+    # Tampilkan pilihan region
+    print("\nPilih region untuk trend:")
+    print("1. Indonesia")
+    print("2. Dunia")
+    print("3. Amerika")
+    
+    # Minta input dari user
+    choice = input("\nMasukkan pilihan (1-3, default: 1): ").strip()
+    
+    # Tentukan region berdasarkan pilihan
+    region_map = {
+        '1': 'indonesia',
+        '2': 'dunia',
+        '3': 'amerika'
+    }
+    
+    region = region_map.get(choice, 'indonesia')
+    
+    print(f"\nMengambil trend dari Google Trends {region.title()}...")
     print("(Mengecualikan berita olahraga dan konten temporer)")
     
-    trends_df = get_top_trends(region='indonesia')
+    trends_df, region_info = get_top_trends(region=region)
     
     if trends_df is not None:
         total_trends = len(trends_df)
-        print(f"\n=== {total_trends} TREND DI INDONESIA ===")
+        print(f"\n=== {total_trends} TREND DI {region_info['name'].upper()} ===")
         print("(Sudah difilter dari konten olahraga dan temporer)")
         print(trends_df)
         
         # Simpan ke file markdown
-        save_to_markdown(trends_df)
+        save_to_markdown(trends_df, region_info)
     else:
         print("\nTidak ada data yang berhasil diambil.")
 
