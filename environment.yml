@@ -1,0 +1,10 @@
+name: google_trends
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pandas=2.1.0
+  - pip
+  - pip:
+    - pytrends==4.9.0 
